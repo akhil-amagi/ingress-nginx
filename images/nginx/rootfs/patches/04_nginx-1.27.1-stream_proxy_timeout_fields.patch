@@ -1,23 +1,24 @@
-diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream.h nginx-1.27.1-patched/src/stream/ngx_stream.h
---- nginx-1.27.1/src/stream/ngx_stream.h	2021-11-04 21:27:55.288708527 +0800
-+++ nginx-1.27.1-patched/src/stream/ngx_stream.h	2021-11-04 21:28:50.768035209 +0800
-@@ -254,6 +254,15 @@ typedef struct {
+--- a/src/stream/ngx_stream.h	2026-11-20 14:44:12
++++ b/src/stream/ngx_stream.h	2026-11-20 14:44:17
+@@ -310,8 +310,17 @@
+     char                        *(*merge_srv_conf)(ngx_conf_t *cf, void *prev,
+                                                    void *conf);
  } ngx_stream_module_t;
- 
- 
++
++
 +typedef struct {
 +    ngx_msec_t                       connect_timeout;
 +    ngx_msec_t                       timeout;
 +} ngx_stream_proxy_ctx_t;
-+
-+
+ 
+ 
 +#define NGX_STREAM_HAVE_PROXY_TIMEOUT_FIELDS_PATCH 1
 +
 +
  #define NGX_STREAM_MODULE       0x4d525453     /* "STRM" */
  
  #define NGX_STREAM_MAIN_CONF    0x02000000
-@@ -307,6 +316,7 @@ void ngx_stream_finalize_session(ngx_str
+@@ -372,6 +381,7 @@
  extern ngx_module_t  ngx_stream_module;
  extern ngx_uint_t    ngx_stream_max_module;
  extern ngx_module_t  ngx_stream_core_module;
@@ -25,10 +26,9 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream.h nginx-1.27.1-patched/sr
  
  
  typedef ngx_int_t (*ngx_stream_filter_pt)(ngx_stream_session_t *s,
-diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27.1-patched/src/stream/ngx_stream_proxy_module.c
---- nginx-1.27.1/src/stream/ngx_stream_proxy_module.c	2021-11-04 21:27:55.289708533 +0800
-+++ nginx-1.27.1-patched/src/stream/ngx_stream_proxy_module.c	2021-11-04 21:37:03.578936990 +0800
-@@ -400,6 +400,7 @@ ngx_stream_proxy_handler(ngx_stream_sess
+--- a/src/stream/ngx_stream_proxy_module.c	2026-11-20 14:44:12
++++ b/src/stream/ngx_stream_proxy_module.c	2026-11-20 14:44:35
+@@ -449,6 +449,7 @@
      ngx_stream_proxy_srv_conf_t      *pscf;
      ngx_stream_upstream_srv_conf_t   *uscf, **uscfp;
      ngx_stream_upstream_main_conf_t  *umcf;
@@ -36,10 +36,11 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
  
      c = s->connection;
  
-@@ -408,6 +409,17 @@ ngx_stream_proxy_handler(ngx_stream_sess
+@@ -456,6 +457,17 @@
+ 
      ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
                     "proxy connection handler");
- 
++
 +    pctx = ngx_palloc(c->pool, sizeof(ngx_stream_proxy_ctx_t));
 +    if (pctx == NULL) {
 +        ngx_stream_proxy_finalize(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
@@ -50,11 +51,10 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
 +    pctx->timeout = pscf->timeout;
 +
 +    ngx_stream_set_ctx(s, pctx, ngx_stream_proxy_module);
-+
+ 
      u = ngx_pcalloc(c->pool, sizeof(ngx_stream_upstream_t));
      if (u == NULL) {
-         ngx_stream_proxy_finalize(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
-@@ -699,6 +711,7 @@ ngx_stream_proxy_connect(ngx_stream_sess
+@@ -758,6 +770,7 @@
      ngx_connection_t             *c, *pc;
      ngx_stream_upstream_t        *u;
      ngx_stream_proxy_srv_conf_t  *pscf;
@@ -62,7 +62,7 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
  
      c = s->connection;
  
-@@ -706,6 +719,8 @@ ngx_stream_proxy_connect(ngx_stream_sess
+@@ -765,6 +778,8 @@
  
      pscf = ngx_stream_get_module_srv_conf(s, ngx_stream_proxy_module);
  
@@ -71,7 +71,7 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
      u = s->upstream;
  
      u->connected = 0;
-@@ -774,7 +789,7 @@ ngx_stream_proxy_connect(ngx_stream_sess
+@@ -847,7 +862,7 @@
      pc->read->handler = ngx_stream_proxy_connect_handler;
      pc->write->handler = ngx_stream_proxy_connect_handler;
  
@@ -80,28 +80,19 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
  }
  
  
-@@ -957,12 +957,14 @@ ngx_stream_proxy_init_upstream(ngx_stream_session_t *s)
- static ngx_int_t
- ngx_stream_proxy_send_proxy_protocol(ngx_stream_session_t *s)
- {
--    u_char                       *p;
--    ssize_t                       n, size;
--    ngx_connection_t             *c, *pc;
--    ngx_stream_upstream_t        *u;
+@@ -1034,8 +1049,10 @@
+     ssize_t                       n;
+     ngx_connection_t             *c, *pc;
+     ngx_stream_upstream_t        *u;
 -    ngx_stream_proxy_srv_conf_t  *pscf;
--    u_char                        buf[NGX_PROXY_PROTOCOL_V1_MAX_HEADER];
-+    u_char                  *p;
-+    u_char                   buf[NGX_PROXY_PROTOCOL_V1_MAX_HEADER];
-+    ssize_t                  n, size;
-+    ngx_connection_t        *c, *pc;
-+    ngx_stream_upstream_t   *u;
-+    ngx_stream_proxy_ctx_t  *ctx;
++    ngx_stream_proxy_ctx_t       *ctx;
+     static u_char                 buf[NGX_PROXY_PROTOCOL_MAX_HEADER];
 +
 +    ctx = ngx_stream_get_module_ctx(s, ngx_stream_proxy_module);
  
      c = s->connection;
  
-@@ -976,9 +993,7 @@ ngx_stream_proxy_send_proxy_protocol(ngx
+@@ -1068,9 +1085,7 @@
              return NGX_ERROR;
          }
  
@@ -112,7 +103,7 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
  
          pc->write->handler = ngx_stream_proxy_connect_handler;
  
-@@ -1053,6 +1068,9 @@ ngx_stream_proxy_ssl_init_connection(ngx
+@@ -1294,6 +1309,9 @@
      ngx_connection_t             *pc;
      ngx_stream_upstream_t        *u;
      ngx_stream_proxy_srv_conf_t  *pscf;
@@ -122,7 +113,7 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
  
      u = s->upstream;
  
-@@ -1099,7 +1117,7 @@ ngx_stream_proxy_ssl_init_connection(ngx
+@@ -1349,7 +1367,7 @@
      if (rc == NGX_AGAIN) {
  
          if (!pc->write->timer_set) {
@@ -131,7 +122,7 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
          }
  
          pc->ssl->handler = ngx_stream_proxy_ssl_handshake;
-@@ -1408,6 +1426,7 @@ ngx_stream_proxy_process_connection(ngx_
+@@ -1744,6 +1762,7 @@
      ngx_stream_session_t         *s;
      ngx_stream_upstream_t        *u;
      ngx_stream_proxy_srv_conf_t  *pscf;
@@ -139,7 +130,7 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
  
      c = ev->data;
      s = c->data;
-@@ -1419,6 +1438,8 @@ ngx_stream_proxy_process_connection(ngx_
+@@ -1755,6 +1774,8 @@
          return;
      }
  
@@ -148,7 +139,7 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
      c = s->connection;
      pc = u->peer.connection;
  
-@@ -1438,7 +1459,7 @@ ngx_stream_proxy_process_connection(ngx_
+@@ -1774,7 +1795,7 @@
                  }
  
                  if (u->connected && !c->read->delayed && !pc->read->delayed) {
@@ -157,17 +148,18 @@ diff -u -r -p -Naur nginx-1.27.1/src/stream/ngx_stream_proxy_module.c nginx-1.27
                  }
  
                  return;
-@@ -1600,6 +1621,9 @@ ngx_stream_proxy_process(ngx_stream_sess
+@@ -1936,7 +1957,10 @@
      ngx_log_handler_pt            handler;
      ngx_stream_upstream_t        *u;
      ngx_stream_proxy_srv_conf_t  *pscf;
 +    ngx_stream_proxy_ctx_t       *ctx;
-+
-+    ctx = ngx_stream_get_module_ctx(s, ngx_stream_proxy_module);
  
++    ctx = ngx_stream_get_module_ctx(s, ngx_stream_proxy_module);
++
      u = s->upstream;
  
-@@ -1807,7 +1831,7 @@ ngx_stream_proxy_process(ngx_stream_sess
+     c = s->connection;
+@@ -2132,7 +2156,7 @@
          }
  
          if (!c->read->delayed && !pc->read->delayed) {
