@@ -1,5 +1,5 @@
 --- a/src/http/modules/ngx_http_log_module.c	2026-11-20 14:45:39
-+++ b/src/http/modules/ngx_http_log_module.c	2026-11-20 14:46:32
++++ b/src/http/modules/ngx_http_log_module.c	2026-11-20 15:11:19
 @@ -79,6 +79,8 @@
      time_t                      open_file_cache_valid;
      ngx_uint_t                  open_file_cache_min_uses;
@@ -90,7 +90,21 @@
  {
      ngx_uint_t      n;
      static u_char   hex[] = "0123456789ABCDEF";
-@@ -1189,6 +1207,7 @@
+@@ -1095,7 +1113,13 @@
+         0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+         0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+     };
++
++    if (lcf->escape_non_ascii) {
++        ngx_memset(&escape[4], 0xff, sizeof(uint32_t) * 4);
+ 
++    } else {
++        ngx_memzero(&escape[4], sizeof(uint32_t) * 4);
++    }
+ 
+     if (dst == NULL) {
+ 
+@@ -1189,6 +1213,7 @@
  static size_t
  ngx_http_log_unescaped_variable_getlen(ngx_http_request_t *r, uintptr_t data)
  {
@@ -98,20 +112,6 @@
      ngx_http_variable_value_t  *value;
  
      value = ngx_http_get_indexed_variable(r, data);
-@@ -1222,7 +1241,13 @@
-     return ngx_cpymem(buf, value->data, value->len);
- }
- 
-+    if (lcf->escape_non_ascii) {
-+        ngx_memset(&escape[4], 0xff, sizeof(uint32_t) * 4);
- 
-+    } else {
-+        ngx_memzero(&escape[4], sizeof(uint32_t) * 4);
-+    }
-+
- static ngx_int_t
- ngx_http_log_check_length(ngx_http_request_t *r, u_char *buf, u_char *end,
-     size_t len)
 @@ -1284,6 +1309,7 @@
      }
  
