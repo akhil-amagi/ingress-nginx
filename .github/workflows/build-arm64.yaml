@@ -1,0 +1,80 @@
+# Builds the arm64 variant of the custom ingress-nginx controller 1.31.9
+# (vk021013/ingress-nginx @ ffdf2ab) natively on an arm64 runner, mirroring
+# images.yaml (nginx base) and build-controller-fork.yaml (controller).
+# Output is uploaded as a docker-archive artifact; it is pushed to the
+# registry outside of CI.
+name: Build arm64 controller 1.31.9
+
+on:
+  push:
+    branches:
+      - arm64-build-1.31.9
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 300
+    env:
+      COMMIT_SHA: git-ffdf2ab
+      REPO_INFO: https://github.com/vk021013/ingress-nginx
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Build nginx base (linux/arm64)
+        run: |
+          cd images/nginx/rootfs
+          docker build --platform=linux/arm64 -t local/nginx-base:1.31.9 .
+
+      - name: Get go version
+        run: echo "GOLANG_VERSION=$(cat GOLANG_VERSION)" >> "$GITHUB_ENV"
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: ${{ env.GOLANG_VERSION }}
+          check-latest: true
+
+      - name: Build controller binaries (arm64)
+        env:
+          PKG: k8s.io/ingress-nginx
+          ARCH: arm64
+          TAG: "1.31.9"
+        run: sh build/build.sh
+
+      - name: Build controller image (linux/arm64)
+        run: |
+          docker build \
+            --platform=linux/arm64 \
+            --build-arg BASE_IMAGE=local/nginx-base:1.31.9 \
+            --build-arg VERSION="1.31.9" \
+            --build-arg TARGETARCH="arm64" \
+            --build-arg COMMIT_SHA="${COMMIT_SHA}" \
+            -t local/ingress-nginx-controller:1.31.9-arm64 \
+            rootfs
+
+      - name: Smoke test
+        run: |
+          docker image inspect local/ingress-nginx-controller:1.31.9-arm64 --format '{{.Architecture}} {{.Os}}'
+          docker run --rm --entrypoint /nginx-ingress-controller local/ingress-nginx-controller:1.31.9-arm64 --version
+          docker run --rm --entrypoint nginx local/ingress-nginx-controller:1.31.9-arm64 -V 2>&1 | head -3
+
+      - name: Save images
+        run: |
+          docker save local/ingress-nginx-controller:1.31.9-arm64 | gzip > controller-1.31.9-arm64.tar.gz
+          docker save local/nginx-base:1.31.9 | gzip > nginx-base-1.31.9-arm64.tar.gz
+          sha256sum *.tar.gz | tee SHA256SUMS
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ingress-nginx-1.31.9-arm64
+          path: |
+            controller-1.31.9-arm64.tar.gz
+            nginx-base-1.31.9-arm64.tar.gz
+            SHA256SUMS
+          retention-days: 14
