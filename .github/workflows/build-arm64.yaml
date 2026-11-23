@@ -44,7 +44,7 @@ jobs:
           PKG: k8s.io/ingress-nginx
           ARCH: arm64
           TAG: "1.31.9"
-        run: sh build/build.sh
+        run: bash build/build.sh
 
       - name: Build controller image (linux/arm64)
         run: |
